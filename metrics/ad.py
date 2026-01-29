@@ -1,27 +1,7 @@
 """Algebraic Degree (AD) metric calculation for S-boxes."""
 
 import numpy as np
-from typing import List
-
-
-def sbox_to_boolean_functions(sbox: List[int]) -> List[np.ndarray]:
-    """
-    Convert an S-box to its 8 Boolean component functions.
-    
-    Args:
-        sbox: A list of 256 integers representing the S-box
-        
-    Returns:
-        A list of 8 Boolean functions (each as a numpy array of 0s and 1s)
-    """
-    boolean_funcs = []
-    for bit_pos in range(8):
-        func = np.zeros(256, dtype=np.int8)
-        for i in range(256):
-            # Extract bit at position bit_pos from sbox[i]
-            func[i] = (sbox[i] >> bit_pos) & 1
-        boolean_funcs.append(func)
-    return boolean_funcs
+from metrics.__utils__ import sbox_to_boolean_functions
 
 
 def compute_ad(sbox):

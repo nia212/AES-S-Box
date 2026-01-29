@@ -2,27 +2,7 @@
 
 from typing import List
 import numpy as np
-
-
-
-def sbox_to_boolean_functions(sbox: List[int]) -> List[np.ndarray]:
-    """
-    Convert an S-box to its 8 Boolean component functions.
-    
-    Args:
-        sbox: A list of 256 integers representing the S-box
-        
-    Returns:
-        A list of 8 Boolean functions (each as a numpy array of 0s and 1s)
-    """
-    boolean_funcs = []
-    for bit_pos in range(8):
-        func = np.zeros(256, dtype=np.int8)
-        for i in range(256):
-            # Extract bit at position bit_pos from sbox[i]
-            func[i] = (sbox[i] >> bit_pos) & 1
-        boolean_funcs.append(func)
-    return boolean_funcs
+from metrics.__utils__ import sbox_to_boolean_functions
 
 
 def compute_bic_nl(sbox):
@@ -65,8 +45,7 @@ def compute_bic_sac(sbox):
     Compute the Bit Independence Criterion - SAC (BIC-SAC) of an S-box.
     
     BIC-SAC measures how well the output bits satisfy the SAC property
-    when considered together. We simplify this by checking the SAC 
-    property for pairs of output bits simultaneously.
+    when considered together using vectorized operations.
     
     Args:
         sbox: A list of 256 integers representing the S-box
@@ -74,56 +53,42 @@ def compute_bic_sac(sbox):
     Returns:
         Average BIC-SAC value across pairs of output bits
     """
-    total_correlation = 0.0
-    count = 0
+    sbox = np.array(sbox, dtype=np.uint8)
+    bic_sac_values = []
     
-    # We'll measure correlation between pairs of output bits
-    # when a single input bit is flipped
+    # For each input bit position
     for input_bit in range(8):
         mask = 1 << input_bit
-        correlations = []
         
-        for output_bit1 in range(8):
-            for output_bit2 in range(output_bit1 + 1, 8):  # Unordered pairs
-                changes1 = 0
-                changes2 = 0
-                
-                for x in range(256):
-                    flipped_x = x ^ mask
-                    if flipped_x < 256:
-                        orig_output = sbox[x]
-                        flipped_output = sbox[flipped_x]
-                        
-                        # Check if output_bit1 changed
-                        orig_bit1 = (orig_output >> output_bit1) & 1
-                        flipped_bit1 = (flipped_output >> output_bit1) & 1
-                        bit1_changed = orig_bit1 != flipped_bit1
-                        
-                        # Check if output_bit2 changed
-                        orig_bit2 = (orig_output >> output_bit2) & 1
-                        flipped_bit2 = (flipped_output >> output_bit2) & 1
-                        bit2_changed = orig_bit2 != flipped_bit2
-                        
-                        # Count how often both bits changed together
-                        if bit1_changed and bit2_changed:
-                            changes1 += 1
-                            changes2 += 1
-                        elif bit1_changed:
-                            changes1 += 1
-                        elif bit2_changed:
-                            changes2 += 1
-                
-                # For true BIC-SAC, we'd want the changes to be independent
-                # So we measure independence as abs(correlation - 0.25) (since 0.5*0.5 = 0.25)
-                # But for simplicity, just average the rate at which they change together
-                correlation = changes1 / 256.0 if 256 > 0 else 0.0
-                correlations.append(correlation)
+        # Create all flipped indices
+        flipped_indices = np.arange(256) ^ mask
         
-        if correlations:
-            total_correlation += sum(correlations) / len(correlations)
-            count += 1
+        # Get original and flipped outputs (vectorized)
+        orig_outputs = sbox
+        flipped_outputs = sbox[flipped_indices]
+        
+        # Compute changes for each bit pair
+        for bit1 in range(8):
+            for bit2 in range(bit1 + 1, 8):
+                # Extract bits (vectorized)
+                orig_bit1 = (orig_outputs >> bit1) & 1
+                flipped_bit1 = (flipped_outputs >> bit1) & 1
+                orig_bit2 = (orig_outputs >> bit2) & 1
+                flipped_bit2 = (flipped_outputs >> bit2) & 1
+                
+                # Count changes
+                changes1 = np.sum(orig_bit1 != flipped_bit1)
+                changes2 = np.sum(orig_bit2 != flipped_bit2)
+                
+                # SAC should be close to 0.5
+                sac1 = changes1 / 256.0
+                sac2 = changes2 / 256.0
+                
+                # Measure independence (should be close to 0.5)
+                independence = abs(0.5 - abs(sac1 - sac2))
+                bic_sac_values.append(independence)
     
-    return total_correlation / count if count > 0 else 0.0
+    return np.mean(bic_sac_values) * 100 if bic_sac_values else 50.0
 
 
 def _walsh_transform_single(func):

@@ -1,14 +1,7 @@
 """Linear Approximation Probability (LAP) metric calculation for S-boxes."""
 
 import numpy as np
-
-def hamming_weight(value: int) -> int:
-    """Calculate the Hamming weight (number of 1 bits) of an integer."""
-    count = 0
-    while value:
-        count += value & 1
-        value >>= 1
-    return count
+from metrics.__utils__ import hamming_weight
 
 
 def lap(sbox):

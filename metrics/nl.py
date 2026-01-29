@@ -8,7 +8,7 @@ from typing import Dict
 
 def compute_boolean_function_nonlinearity(bit_vector: np.ndarray) -> int:
     """
-    Compute nonlinearity of a Boolean function.
+    Compute nonlinearity of a Boolean function using Walsh-Hadamard transform.
     
     Nonlinearity is the minimum Hamming distance to the set of affine Boolean functions.
     
@@ -21,27 +21,26 @@ def compute_boolean_function_nonlinearity(bit_vector: np.ndarray) -> int:
     if len(bit_vector) != 256:
         raise ValueError("Bit vector must have 256 elements")
     
-    min_distance = 128
+    # Convert to {-1, +1} representation for Walsh transform
+    f_plus_minus = (-1.0) ** bit_vector.astype(float)
     
-    # Check distance to all 512 affine functions (256 linear + 256 affine with constant)
-    for linear_coeff in range(256):
-        for constant in range(2):
-            distance = 0
-            
-            for x in range(256):
-                # Compute linear function <linear_coeff, x>
-                linear_val = 0
-                for bit_pos in range(8):
-                    linear_val ^= ((linear_coeff >> bit_pos) & 1) * ((x >> bit_pos) & 1)
-                
-                affine_val = linear_val ^ constant
-                
-                if bit_vector[x] != affine_val:
-                    distance += 1
-            
-            min_distance = min(min_distance, distance)
+    # Apply Fast Walsh-Hadamard Transform
+    W = f_plus_minus.copy()
+    h = 1
+    while h < 256:
+        for i in range(0, 256, h * 2):
+            for j in range(i, i + h):
+                u = W[j]
+                v = W[j + h]
+                W[j] = u + v
+                W[j + h] = u - v
+        h *= 2
     
-    return min_distance
+    # Nonlinearity = 128 - max(|W(a)|)/2
+    max_walsh = np.max(np.abs(W))
+    nl = 128 - int(np.ceil(max_walsh / 2))
+    
+    return nl
 
 
 def sbox_nonlinearity(sbox: np.ndarray) -> Dict:
